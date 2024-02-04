@@ -1,0 +1,15 @@
+[project]
+name = "budget-cli"
+version = "0.1.0"
+authors = [{ name = "David Thigpen", email = "davidthigs@gmail.com" }]
+description = "A CLI for managing expenses"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    'jsonschema==4.21.1'
+]
+[project.scripts]
+budget-cli = 'budget_cli.budget_cli:_main'
+
+# [tool.setuptools.package-data]
+# "budget_cli.templates" = ["*.html"]
