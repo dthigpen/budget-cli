@@ -5,23 +5,6 @@ import json
 from pathlib import Path
 import re
 from typing import Iterable, List
-from dataclasses import dataclass
-
-@dataclass
-class Transaction:
-    date_occurred: datetime
-    amount: float
-    name: str
-    row: list = None
-
-def matches_criteria(text, criteria: str | list[str]) -> bool:
-    if isinstance(criteria, str):
-        if re.search(criteria, text, flags=re.IGNORECASE):
-            return True
-    else:
-        # TODO handle list[str] case for ANDing multiple
-        raise ValueError(f"Unsupported rule value {type(criteria)}")
-    return False
 
 def __transaction_matches_category(transaction: dict, category: dict) -> bool:
     is_match = False
@@ -56,7 +39,7 @@ def group_by(items: list, key_getter) -> dict:
         groups[key].append(item)
     return groups
     
-def run(budget: dict, transactions: Iterable[Transaction], output_dir: Path):
+def run(budget: dict, transactions: Iterable[dict], output_dir: Path):
     print('Generating reports')
     transactions = list(transactions)
     actions = budget.get('actions', [])
@@ -88,7 +71,6 @@ def run(budget: dict, transactions: Iterable[Transaction], output_dir: Path):
             removed_transactions.extend(matching_transactions)
             for t in matching_transactions:
                 replacement_transactions = []
-                # TODO copy t
                 orig_amount = t['amount']
                 orig_amount_sign = 1 if t['amount'] >= 0 else -1
                 orig_amount_abs = abs(orig_amount)
@@ -119,12 +101,15 @@ def run(budget: dict, transactions: Iterable[Transaction], output_dir: Path):
     # categorize transactions
     for transaction in filter(lambda x: not x.get('category'), preprocessed_transactions):
         found_category = False
+        matching_categories = []
         for category in budget.get('categories',[]):
             if __transaction_matches_category(transaction, category):
-                found_category = True
+                matching_categories.append(category)
                 transaction['category'] = category['name']
-                break
-        if not found_category:
+                # break
+        if len(matching_categories) > 1:
+            print(f'Warning: Transaction matches multiple categories. Transaction: {json.dumps(transaction)} Categories: {", ".join(map(lambda c: c["name"], matching_categories))}')
+        if not matching_categories:
             transaction['category'] = 'uncategorized'
             # exit()
     hidden_transactions = []
@@ -173,7 +158,6 @@ def run(budget: dict, transactions: Iterable[Transaction], output_dir: Path):
                 if category_type not in month_report['summary']:
                     month_report['summary'][category_type] = { 'categories': {}}
                 month_report['summary'][category_type]['categories'][category_name] = '{:.2f}'.format(category_total)
-            # TODO remove category from transactions
             def without_categories(t):
                 t = json.loads(json.dumps(t)) # copy dict
                 t.pop('category')
