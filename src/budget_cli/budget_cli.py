@@ -6,6 +6,11 @@ from pathlib import Path
 import re
 from typing import Iterable, List
 
+
+def __transaction_matches_account(transaction: dict, account: dict) -> bool:
+    account_on_transaction = str(transaction.get('account',''))
+    return bool(re.search(account['name'], account_on_transaction))
+        
 def __transaction_matches_category(transaction: dict, category: dict) -> bool:
     is_match = False
     if category.get('includes'):
@@ -38,10 +43,11 @@ def group_by(items: list, key_getter) -> dict:
             groups[key] = []
         groups[key].append(item)
     return groups
-    
+
 def run(budget: dict, transactions: Iterable[dict], output_dir: Path):
     print('Generating reports')
     transactions = list(transactions)
+    accounts = budget.get('accounts', [])
     actions = budget.get('actions', [])
     # split/replace should be done before categorization because it adds/removes transactions
     pre_categorization_actions = list(filter(lambda a: a.get('type') in ('split', 'replace'), actions))
@@ -52,6 +58,19 @@ def run(budget: dict, transactions: Iterable[dict], output_dir: Path):
         types = ', '.join(map(lambda x: x.get('type'), unhandled_actions))
         raise ValueError(f'Actions with unknown types: {types}')
 
+    # handle negating transactions on accounts of type credit
+    if accounts:
+        credit_accounts = list(
+            filter(
+                lambda a: a.get('type').lower() == 'credit',
+                accounts
+            )
+        )
+        for acc in credit_accounts:
+            matching_transactions = filter(lambda x: __transaction_matches_account(x, acc), transactions)
+            for t in matching_transactions:
+                t['amount'] = -1 * float(t['amount'])
+    
     # handle pre_categorization_actions
     removed_transactions = []
     added_transactions = []
@@ -153,11 +172,11 @@ def run(budget: dict, transactions: Iterable[dict], output_dir: Path):
             else:
                 category_type = next((c for c in budget.get('categories', []) if c['name'] == category_name), {'type': 'expense'})['type']
             if category_type == 'uncategorized':
-                month_report['summary'][category_type] = '{:.2f}'.format(category_total)
+                month_report['summary'][category_type] = round(category_total, 2)
             else:
                 if category_type not in month_report['summary']:
                     month_report['summary'][category_type] = { 'categories': {}}
-                month_report['summary'][category_type]['categories'][category_name] = '{:.2f}'.format(category_total)
+                month_report['summary'][category_type]['categories'][category_name] = round(category_total, 2)
             def without_categories(t):
                 t = json.loads(json.dumps(t)) # copy dict
                 t.pop('category')
@@ -169,6 +188,24 @@ def run(budget: dict, transactions: Iterable[dict], output_dir: Path):
                     month_report['transactions'][category_type] = {}
                 
                 month_report['transactions'][category_type][category_name] = list(map(without_categories, category_transactions))
+        # calculate category totals
+        for cat_type, cat_type_obj,  in month_report['summary'].items():
+            if cat_type == 'uncategorized':
+                continue
+            total = sum(
+                map(float, cat_type_obj['categories'].values())
+            )
+            cat_type_obj['total'] = round(total, 2)
+        # calculate savings
+        income_total = month_report['summary'].get('income',{}).get('total',0.0)    
+        expense_total = month_report['summary'].get('expense',{}).get('total',0.0)
+        if income_total is not None and expense_total is not None:
+            # expenses are negative so + is used
+            savings_total = income_total + expense_total
+            month_report['summary']['savings'] = {
+                'total': round(savings_total, 2),
+                'rate': round((savings_total/income_total) if income_total != 0.0 else 0.0, 2)
+            }
         # reinsert uncategorized so it goes after the other
         if 'uncategorized' in month_report['summary']:
             month_report['summary']['uncategorized'] = month_report['summary'].pop('uncategorized')
