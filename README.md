@@ -1,10 +1,26 @@
 # Budget CLI
+
 Manage your personal finances and generate expense reports of your spending, all without sending sensitive bank information to third-parties!
  - Get summaries of monthly spending by category
  - Identify uncategorized transactions
  - Savings rate
+
 ## Usage
 
+### Create Transactions
+
+Budget CLI requires that transaction files be a JSON formatted array of transaction objects, as seen below. With a bit of coding, these can be generated from bank and credit card statements using [bank-statement-parser](https://github.com/dthigpen/bank-statement-parser).
+```json
+[
+	{
+	    "date": "2024-04-06",        
+	    "description": "WM SUPERCENTER #1234",
+	    "amount": 39.45,
+	    "account": "Chase Credit Card"        
+	},
+	...
+]
+```
 ### Create a budget
 
 Budgets are defined in JSON. Create categories to group transactions.
