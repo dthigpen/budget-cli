@@ -230,7 +230,7 @@ def parse_budget(budget_path: Path) -> dict:
     budget = {**DEFAULT_BUDGET, **budget}
     return budget
 
-def _main():
+def main():
     def existing_file(p: str) -> Path:
         p = Path(p)
         if p.is_file():
@@ -252,4 +252,4 @@ def _main():
     
     
 if __name__ == "__main__":
-    _main()
+    main()
